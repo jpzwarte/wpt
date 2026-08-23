@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>:has-slotted only matches slot elements with slotted nodes</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#the-has-slotted-pseudo" />
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="host"><template shadowrootmode="open"><div id="notASlot"><span id="descendant"></span></div><slot></slot></template><i>light</i></div>
+<div id="commentOnly"><template shadowrootmode="open"><slot></slot></template><!-- comments are not slotables --></div>
+<div id="hiddenChild"><template shadowrootmode="open"><slot></slot></template><i style="display: none">light</i></div>
+<slot id="documentSlot"><i>child of a slot in the document tree</i></slot>
+<script>
+  test(function () {
+    const shadowRoot = document.getElementById("host").shadowRoot;
+    const slot = shadowRoot.querySelector("slot");
+    assert_equals(slot.assignedNodes().length, 1, "the slot has an assigned node");
+    assert_true(slot.matches(":has-slotted"), "the slot itself matches");
+    assert_false(shadowRoot.getElementById("notASlot").matches(":has-slotted"),
+                 "an element that is not a slot never matches");
+    assert_false(shadowRoot.getElementById("descendant").matches(":has-slotted"),
+                 "an element inside a non-slot element never matches");
+    assert_false(document.getElementById("host").matches(":has-slotted"),
+                 "the shadow host never matches");
+    assert_equals(shadowRoot.querySelectorAll(":has-slotted").length, 1,
+                  "only the slot matches");
+  }, ":has-slotted only matches slot elements");
+
+  test(function () {
+    const slot = document.getElementById("documentSlot");
+    assert_equals(slot.assignedNodes({flatten: true}).length, 0,
+                  "a slot whose root is not a shadow root has no flattened slotables");
+    assert_false(slot.matches(":has-slotted"));
+    assert_equals(document.querySelectorAll(":has-slotted").length, 0,
+                  "no slot in the document tree matches");
+  }, ":has-slotted does not match a slot element in the document tree");
+
+  test(function () {
+    const slot = document.createElement("slot");
+    slot.append(document.createElement("i"));
+    assert_equals(slot.assignedNodes({flatten: true}).length, 0, "flattened slotables");
+    assert_false(slot.matches(":has-slotted"));
+  }, ":has-slotted does not match a slot element in a detached tree");
+
+  test(function () {
+    const slot = document.getElementById("commentOnly").shadowRoot.querySelector("slot");
+    assert_equals(slot.assignedNodes().length, 0, "a comment node is not a slotable");
+    assert_false(slot.matches(":has-slotted"));
+  }, ":has-slotted does not match a slot whose host only has comment children");
+
+  test(function (t) {
+    const host = document.getElementById("commentOnly");
+    const slot = host.shadowRoot.querySelector("slot");
+    const comment = document.createComment("also not a slotable");
+    t.add_cleanup(() => { comment.remove(); });
+
+    host.append(comment);
+    assert_equals(slot.assignedNodes().length, 0, "assigned nodes");
+    assert_false(slot.matches(":has-slotted"),
+                 "inserting a comment node does not make :has-slotted match");
+  }, "Inserting a comment node does not make :has-slotted match");
+
+  test(function () {
+    const slot = document.getElementById("hiddenChild").shadowRoot.querySelector("slot");
+    assert_equals(slot.assignedNodes().length, 1, "assigned nodes");
+    assert_true(slot.matches(":has-slotted"),
+                "assignment does not depend on the assigned node being rendered");
+  }, ":has-slotted matches a slot whose only assigned node is display: none");
+</script>

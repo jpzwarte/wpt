@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>:has-slotted and named slots</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#the-has-slotted-pseudo" />
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!-- No whitespace inside the host: a whitespace text node would be assigned to the default slot. -->
+<div id="host"><template shadowrootmode="open"><style>
+  slot { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot></slot><slot name="named"></slot></template><i>light</i></div>
+<script>
+  const red = "rgb(255, 0, 0)";
+  const green = "rgb(0, 128, 0)";
+  const host = document.getElementById("host");
+  const [defaultSlot, namedSlot] = host.shadowRoot.querySelectorAll("slot");
+  const child = host.querySelector("i");
+
+  // Asserts the DOM state the selector derives from, then every way of observing it.
+  function assertSlotted(slot, expected, description) {
+    assert_equals(slot.assignedNodes({flatten: true}).length > 0, expected,
+                  description + " (flattened slotables)");
+    assert_equals(slot.matches(":has-slotted"), expected, description + " (matches)");
+    assert_equals([...host.shadowRoot.querySelectorAll(":has-slotted")].includes(slot), expected,
+                  description + " (querySelectorAll)");
+    assert_equals(getComputedStyle(slot).color, expected ? green : red,
+                  description + " (computed style)");
+  }
+
+  test(function () {
+    assertSlotted(defaultSlot, true, "the default slot has the unnamed child assigned");
+    assertSlotted(namedSlot, false, "the named slot has nothing assigned");
+  }, "An unnamed child is assigned to the default slot only");
+
+  test(function (t) {
+    t.add_cleanup(() => { child.removeAttribute("slot"); });
+
+    child.setAttribute("slot", "named");
+    assertSlotted(defaultSlot, false, "the default slot no longer matches");
+    assertSlotted(namedSlot, true, "the named slot now matches");
+
+    child.removeAttribute("slot");
+    assertSlotted(defaultSlot, true, "the default slot matches again");
+    assertSlotted(namedSlot, false, "the named slot no longer matches");
+  }, "Changing the slot attribute of a child invalidates :has-slotted on both slots");
+
+  test(function (t) {
+    t.add_cleanup(() => {
+      child.removeAttribute("slot");
+      namedSlot.setAttribute("name", "named");
+    });
+
+    child.setAttribute("slot", "named");
+    assertSlotted(namedSlot, true, "assigned to the named slot");
+
+    namedSlot.setAttribute("name", "other");
+    assertSlotted(namedSlot, false,
+                  "renaming the slot away from the child's slot attribute unassigns it");
+    assertSlotted(defaultSlot, false,
+                  "a child with a slot attribute is not assigned to the default slot");
+
+    namedSlot.setAttribute("name", "named");
+    assertSlotted(namedSlot, true, "renaming it back reassigns the child");
+  }, "Changing the name attribute of a slot invalidates :has-slotted");
+
+  test(function (t) {
+    t.add_cleanup(() => { namedSlot.setAttribute("name", "named"); });
+
+    namedSlot.removeAttribute("name");
+    assertSlotted(defaultSlot, true, "the first default slot in tree order keeps the assignment");
+    assertSlotted(namedSlot, false, "a second default slot has nothing assigned to it");
+  }, "Only the first default slot in tree order matches :has-slotted");
+
+  test(function (t) {
+    const orphan = document.createElement("i");
+    t.add_cleanup(() => { orphan.remove(); });
+
+    orphan.setAttribute("slot", "no-such-slot");
+    host.append(orphan);
+    assertSlotted(namedSlot, false, "the named slot is unaffected");
+    assertSlotted(defaultSlot, true,
+                  "only the pre-existing unnamed child is assigned to the default slot");
+    assert_equals(defaultSlot.assignedNodes().length, 1, "assigned nodes");
+  }, "A child naming a slot that does not exist is not assigned to any slot");
+</script>

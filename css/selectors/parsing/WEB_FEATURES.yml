@@ -1,6 +1,7 @@
 rules:
 - parse-focus-visible.html: [focus-visible]
 - parse-has.html: [has]
+- parse-has-slotted.html: [has-slotted]
 - parse-has-slotted.tentative.html: [has-slotted]
 - parse-has-*: [has]
 - parse-state.html: [state]

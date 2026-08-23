@@ -1,64 +1,55 @@
-<!DOCTYPE HTML>
-<html>
+<!doctype html>
+<meta charset="utf-8">
+<title>Changing content targetting :has-slotted(...) and :has-slotted through multiple shadow roots</title>
+<link rel="help" href="https://github.com/w3c/csswg-drafts/pull/10586">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!--
+  #test's children are slotted into #inner's <slot>, which is itself slotted into
+  the <slot> of #inner's shadow tree, so :has-slotted is evaluated against the
+  flattened slotables. The three slot rules are mutually exclusive, so the expected
+  colour does not depend on the relative specificity of :has-slotted and
+  :has-slotted(), which the specification does not define yet. Black means no rule
+  matched. No whitespace anywhere in the light DOM: a whitespace text node would be
+  assigned to the slot.
+-->
+<div id="test"><template shadowrootmode="open"><div id="inner"><template shadowrootmode="open"><slot></slot><p id="target">This text will be styled.</p><style>
+  p { color: rgb(0, 0, 0); }
+  slot:not(:has-slotted) + p { color: rgb(0, 0, 255); }
+  slot:has-slotted:not(:has-slotted(div)) + p { color: rgb(255, 0, 255); }
+  slot:has-slotted(div) + p { color: rgb(0, 255, 0); }
+</style></template><slot></slot></div></template></div>
+<script>
+  const blue = 'rgb(0, 0, 255)';       // nothing is slotted
+  const fuchsia = 'rgb(255, 0, 255)';  // something is slotted, but no div
+  const green = 'rgb(0, 255, 0)';      // a div is slotted
 
-<head>
-  <meta charset="utf-8">
-  <title>Changing content targetting :has-slotted(...) and :has-slotted through multiple shadow roots</title>
-  <link rel="help" href="https://github.com/w3c/csswg-drafts/pull/10586">
-  <script src="/resources/testharness.js"></script>
-  <script src="/resources/testharnessreport.js"></script>
-  <script src="/resources/testdriver.js"></script>
-  <script src="/resources/testdriver-vendor.js"></script>
-  <script src="/resources/testdriver-actions.js"></script>
-</head>
+  test(function (t) {
+    const host = document.getElementById('test');
+    const inner = host.shadowRoot.getElementById('inner');
+    const target = inner.shadowRoot.getElementById('target');
+    const color = () => getComputedStyle(target).getPropertyValue('color');
+    t.add_cleanup(() => { host.replaceChildren(); });
 
-<body>
+    assert_equals(color(), blue, 'nothing slotted');
 
-  <div id="test"><template shadowrootmode="open"><div id="inner"><template shadowrootmode="open">
-    <slot></slot>
-    <p id="target">This text will be styled.</p>
-    <style>
-      p {
-        color: rgb(0 255 0);
-      }
-      slot:not(:has-slotted) + p {
-        color: rgb(0 0 255);
-      }
-      slot:not(:has-slotted(div)) + p {
-        color: rgb(255 0 255);
-      }
-    </style>
-  </template><slot></slot></div></template></div>
+    const text = document.createTextNode(' ');
+    host.replaceChildren(text);
+    assert_equals(color(), fuchsia, 'a whitespace text node is slotted');
 
+    text.remove();
+    assert_equals(color(), blue, 'the text node is removed');
 
-  <script>
-    const blue = 'rgb(0, 0,  255)';
-    const green = 'rgb(0, 255, 0)';
-    const fuchsia = 'rgb(255, 0, 255)';
-    test(function () {
-      const test = document.getElementById('test');
-      const inner = test.shadowRoot.getElementById('inner');
-      const target = inner.shadowRoot.getElementById('target');
-      let styles = getComputedStyle(target);
-      assert_equals(styles.getPropertyValue('color'), green);
-      const node = document.createTextNode(' ');
-      test.replaceChildren(node);
-      styles = getComputedStyle(target);
-      assert_equals(styles.getPropertyValue('color'), blue);
-      node.remove();
-      styles = getComputedStyle(target);
-      assert_equals(styles.getPropertyValue('color'), green);
-      test.innerHTML = '<div></div>';
-      styles = getComputedStyle(target);
-      assert_equals(styles.getPropertyValue('color'), fuchsia);
-      test.appendChild(node);
-      styles = getComputedStyle(target);
-      assert_equals(styles.getPropertyValue('color'), blue);
-      test.textContent = '';
-      styles = getComputedStyle(target);
-      assert_equals(styles.getPropertyValue('color'), green);
-    });
-  </script>
-</body>
+    host.innerHTML = '<div></div>';
+    assert_equals(color(), green, 'a div is slotted');
 
-</html>
+    host.appendChild(text);
+    assert_equals(color(), green, 'a div is still slotted alongside the text node');
+
+    host.replaceChildren(text);
+    assert_equals(color(), fuchsia, 'only the text node is left');
+
+    host.textContent = '';
+    assert_equals(color(), blue, 'emptied with textContent');
+  }, ':has-slotted and :has-slotted(div) are invalidated through two levels of slots');
+</script>

@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>:has-slotted invalidation on structural changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#the-has-slotted-pseudo" />
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!-- No whitespace inside the hosts: a whitespace text node would be assigned to the slot. -->
+<div id="host"><template shadowrootmode="open"><style>
+  slot { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot></slot></template></div>
+<div id="otherHost"><template shadowrootmode="open"><style>
+  slot { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot></slot></template></div>
+<script>
+  const red = "rgb(255, 0, 0)";
+  const green = "rgb(0, 128, 0)";
+  const host = document.getElementById("host");
+  const otherHost = document.getElementById("otherHost");
+  const slot = host.shadowRoot.querySelector("slot");
+  const otherSlot = otherHost.shadowRoot.querySelector("slot");
+
+  function assertSlotted(target, expected, description) {
+    assert_equals(target.assignedNodes({flatten: true}).length > 0, expected,
+                  description + " (flattened slotables)");
+    assert_equals(target.matches(":has-slotted"), expected, description + " (matches)");
+    assert_equals(getComputedStyle(target).color, expected ? green : red,
+                  description + " (computed style)");
+  }
+
+  test(function (t) {
+    const text = document.createTextNode("text");
+    t.add_cleanup(() => { text.remove(); });
+
+    host.append(text);
+    assertSlotted(slot, true, "a text node is assigned");
+
+    text.data = "";
+    assert_equals(slot.assignedNodes().length, 1,
+                  "an empty text node is still a slotable");
+    assertSlotted(slot, true, "an empty text node keeps :has-slotted matching");
+
+    text.data = "text again";
+    assertSlotted(slot, true, "still matching");
+
+    text.remove();
+    assertSlotted(slot, false, "removing the text node stops the match");
+  }, "Mutating the data of an assigned text node does not change :has-slotted");
+
+  test(function (t) {
+    const child = document.createElement("i");
+    t.add_cleanup(() => { child.remove(); });
+
+    host.append(child);
+    assertSlotted(slot, true, "assigned to the first host");
+    assertSlotted(otherSlot, false, "the second host has nothing");
+
+    otherHost.append(child);
+    assertSlotted(slot, false, "the first host lost its only child");
+    assertSlotted(otherSlot, true, "the second host gained it");
+  }, "Moving a node between two hosts invalidates :has-slotted in both shadow trees");
+
+  test(function (t) {
+    const child = document.createElement("i");
+    t.add_cleanup(() => {
+      child.remove();
+      if (!slot.isConnected) host.shadowRoot.append(slot);
+    });
+
+    host.append(child);
+    assertSlotted(slot, true, "assigned before the slot is removed");
+
+    slot.remove();
+    assert_equals(slot.assignedNodes({flatten: true}).length, 0,
+                  "a slot outside a shadow tree has no flattened slotables");
+    assert_false(slot.matches(":has-slotted"),
+                 "a slot removed from its shadow tree does not match");
+
+    host.shadowRoot.append(slot);
+    assert_equals(slot.assignedNodes().length, 1, "reinserting the slot reassigns the child");
+    assertSlotted(slot, true, "a reinserted slot matches again");
+  }, "Removing and reinserting a slot invalidates :has-slotted");
+
+  test(function (t) {
+    const child = document.createElement("i");
+    const extraSlot = document.createElement("slot");
+    t.add_cleanup(() => {
+      child.remove();
+      extraSlot.remove();
+    });
+
+    host.append(child);
+    assertSlotted(slot, true, "the original slot has the child assigned");
+
+    host.shadowRoot.insertBefore(extraSlot, slot);
+    assert_equals(extraSlot.assignedNodes().length, 1,
+                  "the new first default slot takes the assignment");
+    assertSlotted(extraSlot, true, "the newly inserted slot matches");
+    assertSlotted(slot, false, "the previously matching slot stops matching");
+  }, "Inserting a slot before an existing one moves the assignment and invalidates :has-slotted");
+
+  test(function (t) {
+    const detachedHost = document.createElement("div");
+    const detachedRoot = detachedHost.attachShadow({mode: "open"});
+    const detachedSlot = document.createElement("slot");
+    detachedRoot.append(detachedSlot);
+
+    assert_false(detachedSlot.matches(":has-slotted"), "nothing assigned yet");
+
+    detachedHost.append(document.createElement("i"));
+    assert_equals(detachedSlot.assignedNodes().length, 1, "assigned nodes");
+    assert_true(detachedSlot.matches(":has-slotted"),
+                "assignment does not require the host to be connected");
+
+    document.body.append(detachedHost);
+    t.add_cleanup(() => { detachedHost.remove(); });
+    assert_true(detachedSlot.matches(":has-slotted"), "still matching once connected");
+  }, ":has-slotted matches in a shadow tree whose host is not connected");
+</script>

@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>CSS Selectors: parsing the :has-slotted pseudo-class</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#the-has-slotted-pseudo" />
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/css/support/parsing-testcommon.js"></script>
+<script>
+  test_valid_selector(":has-slotted");
+  test_valid_selector("slot:has-slotted");
+  test_valid_selector(":has-slotted:hover");
+  test_valid_selector(":has-slotted::before");
+  test_valid_selector("slot:has-slotted + p");
+  test_valid_selector("slot:has-slotted::slotted(div)");
+  test_valid_selector(":not(:has-slotted)");
+  test_valid_selector(":is(:has-slotted)");
+  test_valid_selector(":where(:has-slotted)");
+  test_valid_selector(":has(:has-slotted)");
+  test_valid_selector("div :has-slotted");
+
+  // :has-slotted is an ASCII case-insensitive keyword, and serializes lowercased.
+  test_valid_selector(":HAS-SLOTTED", ":has-slotted");
+  test_valid_selector("slot:Has-Slotted", "slot:has-slotted");
+
+  // :has-slotted is a pseudo-class, not a pseudo-element.
+  test_invalid_selector("::has-slotted");
+  test_invalid_selector("::has-slotted()");
+  test_invalid_selector(":has-slotted()");
+</script>

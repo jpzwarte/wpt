@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>:has-slotted has the specificity of a pseudo-class</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#the-has-slotted-pseudo" />
+<link rel="help" href="https://drafts.csswg.org/selectors-4/#specificity-rules" />
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!-- :has-slotted is a pseudo-class, so it contributes to the B ("class") component
+     of specificity, unlike ::slotted() which is a pseudo-element. -->
+<div id="beatsType"><template shadowrootmode="open"><style>
+  :has-slotted { color: rgb(0, 128, 0); }
+  slot { color: rgb(255, 0, 0); }
+</style><slot></slot></template><i>light</i></div>
+
+<div id="tieClassBefore"><template shadowrootmode="open"><style>
+  .marker { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot class="marker"></slot></template><i>light</i></div>
+
+<div id="tieClassAfter"><template shadowrootmode="open"><style>
+  :has-slotted { color: rgb(255, 0, 0); }
+  .marker { color: rgb(0, 128, 0); }
+</style><slot class="marker"></slot></template><i>light</i></div>
+
+<div id="losesToId"><template shadowrootmode="open"><style>
+  #slot { color: rgb(0, 128, 0); }
+  :has-slotted { color: rgb(255, 0, 0); }
+</style><slot id="slot"></slot></template><i>light</i></div>
+
+<div id="compound"><template shadowrootmode="open"><style>
+  .marker { color: rgb(255, 0, 0); }
+  slot:has-slotted { color: rgb(0, 128, 0); }
+</style><slot class="marker"></slot></template><i>light</i></div>
+<script>
+  const green = "rgb(0, 128, 0)";
+  const colorOf = id =>
+    getComputedStyle(document.getElementById(id).shadowRoot.querySelector("slot")).color;
+
+  test(function () {
+    assert_equals(colorOf("beatsType"), green);
+  }, ":has-slotted (0,1,0) beats a type selector (0,0,1) declared after it");
+
+  test(function () {
+    assert_equals(colorOf("tieClassBefore"), green);
+  }, ":has-slotted ties with a class selector, so the later rule wins (:has-slotted last)");
+
+  test(function () {
+    assert_equals(colorOf("tieClassAfter"), green);
+  }, ":has-slotted ties with a class selector, so the later rule wins (class last)");
+
+  test(function () {
+    assert_equals(colorOf("losesToId"), green);
+  }, ":has-slotted (0,1,0) loses to an ID selector (1,0,0) declared before it");
+
+  test(function () {
+    assert_equals(colorOf("compound"), green);
+  }, "slot:has-slotted (0,1,1) beats a class selector (0,1,0) declared before it");
+</script>

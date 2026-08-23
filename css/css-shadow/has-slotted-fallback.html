@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>:has-slotted and slot fallback content</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#the-has-slotted-pseudo" />
+<link rel="help" href="https://dom.spec.whatwg.org/#find-flattened-slotables" />
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!--
+  :has-slotted matches slots "which have a non-empty list of flattened slotted
+  nodes", which is DOM's "find flattened slotables". That algorithm falls back to
+  the slot's own slotable children when nothing is assigned, so a slot rendering
+  its fallback content still has a non-empty list. Each test therefore asserts
+  assignedNodes({flatten: true}) alongside :has-slotted, so that the expectation
+  and the definition it derives from stay visible together.
+-->
+<div id="empty"><template shadowrootmode="open"><style>
+  slot { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot></slot></template></div>
+<div id="fallbackOnly"><template shadowrootmode="open"><style>
+  slot { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot><b>fallback</b></slot></template></div>
+<div id="fallbackAssigned"><template shadowrootmode="open"><style>
+  slot { color: rgb(255, 0, 0); }
+  :has-slotted { color: rgb(0, 128, 0); }
+</style><slot><b>fallback</b></slot></template><i>light</i></div>
+<script>
+  const red = "rgb(255, 0, 0)";
+  const green = "rgb(0, 128, 0)";
+  const slotOf = id => document.getElementById(id).shadowRoot.querySelector("slot");
+
+  test(function () {
+    const slot = slotOf("empty");
+    assert_equals(slot.assignedNodes({flatten: true}).length, 0, "flattened slotables");
+    assert_false(slot.matches(":has-slotted"));
+    assert_equals(getComputedStyle(slot).color, red);
+  }, "A slot with neither assigned nodes nor fallback content does not match :has-slotted");
+
+  test(function () {
+    const slot = slotOf("fallbackOnly");
+    assert_equals(slot.assignedNodes().length, 0, "assigned nodes");
+    assert_equals(slot.assignedNodes({flatten: true}).length, 1,
+                  "fallback content is part of the flattened slotables");
+    assert_true(slot.matches(":has-slotted"));
+    assert_equals(getComputedStyle(slot).color, green);
+  }, "A slot rendering its fallback content has a non-empty list of flattened slotted nodes");
+
+  test(function () {
+    const slot = slotOf("fallbackAssigned");
+    assert_equals(slot.assignedNodes().length, 1, "assigned nodes");
+    assert_equals(slot.assignedNodes({flatten: true}).length, 1, "flattened slotables");
+    assert_true(slot.matches(":has-slotted"));
+    assert_equals(getComputedStyle(slot).color, green);
+  }, "A slot whose fallback content is overridden by an assigned node matches :has-slotted");
+
+  test(function (t) {
+    const host = document.getElementById("fallbackOnly");
+    const slot = host.shadowRoot.querySelector("slot");
+    t.add_cleanup(() => { host.replaceChildren(); });
+
+    host.append(document.createElement("i"));
+    assert_equals(slot.assignedNodes().length, 1, "assigned nodes after append");
+    assert_true(slot.matches(":has-slotted"), "still matches once content is assigned");
+    assert_equals(getComputedStyle(slot).color, green);
+
+    host.replaceChildren();
+    assert_equals(slot.assignedNodes().length, 0, "assigned nodes after replaceChildren");
+    assert_equals(slot.assignedNodes({flatten: true}).length, 1, "fallback content again");
+    assert_true(slot.matches(":has-slotted"), "falls back to the fallback content");
+    assert_equals(getComputedStyle(slot).color, green);
+  }, "Adding and removing assigned nodes does not change :has-slotted for a slot with fallback content");
+
+  test(function (t) {
+    const host = document.getElementById("empty");
+    const slot = host.shadowRoot.querySelector("slot");
+    const fallback = document.createElement("b");
+    t.add_cleanup(() => { fallback.remove(); });
+
+    slot.append(fallback);
+    assert_equals(slot.assignedNodes({flatten: true}).length, 1, "flattened slotables");
+    assert_true(slot.matches(":has-slotted"), "adding fallback content invalidates :has-slotted");
+    assert_equals(getComputedStyle(slot).color, green);
+
+    fallback.remove();
+    assert_equals(slot.assignedNodes({flatten: true}).length, 0, "flattened slotables");
+    assert_false(slot.matches(":has-slotted"), "removing fallback content invalidates :has-slotted");
+    assert_equals(getComputedStyle(slot).color, red);
+  }, "Inserting and removing fallback content invalidates :has-slotted");
+</script>
